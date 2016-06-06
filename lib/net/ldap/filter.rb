@@ -23,11 +23,11 @@
 class Net::LDAP::Filter
   ##
   # Known filter types.
-  FilterTypes = [ :ne, :eq, :ge, :le, :and, :or, :not, :ex, :bineq ]
+  FilterTypes = [:ne, :eq, :ge, :le, :and, :or, :not, :ex, :bineq]
 
   def initialize(op, left, right) #:nodoc:
     unless FilterTypes.include?(op)
-      raise Net::LDAP::LdapError, "Invalid or unsupported operator #{op.inspect} in LDAP Filter."
+      raise Net::LDAP::OperatorError, "Invalid or unsupported operator #{op.inspect} in LDAP Filter."
     end
     @op = op
     @left = left
@@ -242,7 +242,7 @@ class Net::LDAP::Filter
 
     # http://tools.ietf.org/html/rfc4515 lists these exceptions from UTF1
     # charset for filters. All of the following must be escaped in any normal
-    # string using a single backslash ('\') as escape. 
+    # string using a single backslash ('\') as escape.
     #
     ESCAPES = {
       "\0" => '00', # NUL            = %x00 ; null character
@@ -251,10 +251,10 @@ class Net::LDAP::Filter
       ')'  => '29', # RPARENS        = %x29 ; right parenthesis (")")
       '\\' => '5C', # ESC            = %x5C ; esc (or backslash) ("\")
     }
-    # Compiled character class regexp using the keys from the above hash. 
+    # Compiled character class regexp using the keys from the above hash.
     ESCAPE_RE = Regexp.new(
-      "[" + 
-      ESCAPES.keys.map { |e| Regexp.escape(e) }.join + 
+      "[" +
+      ESCAPES.keys.map { |e| Regexp.escape(e) }.join +
       "]")
 
     ##
@@ -287,10 +287,10 @@ class Net::LDAP::Filter
       when 0xa4 # context-specific constructed 4, "substring"
         str = ""
         final = false
-        ber.last.each { |b|
+        ber.last.each do |b|
           case b.ber_identifier
           when 0x80 # context-specific primitive 0, SubstringFilter "initial"
-            raise Net::LDAP::LdapError, "Unrecognized substring filter; bad initial value." if str.length > 0
+            raise Net::LDAP::SubstringFilterError, "Unrecognized substring filter; bad initial value." if str.length > 0
             str += escape(b)
           when 0x81 # context-specific primitive 0, SubstringFilter "any"
             str += "*#{escape(b)}"
@@ -298,7 +298,7 @@ class Net::LDAP::Filter
             str += "*#{escape(b)}"
             final = true
           end
-        }
+        end
         str += "*" unless final
         eq(ber.first.to_s, str)
       when 0xa5 # context-specific constructed 5, "greaterOrEqual"
@@ -309,9 +309,9 @@ class Net::LDAP::Filter
         # call to_s to get rid of the BER-identifiedness of the incoming string.
         present?(ber.to_s)
       when 0xa9 # context-specific constructed 9, "extensible comparison"
-        raise Net::LDAP::LdapError, "Invalid extensible search filter, should be at least two elements" if ber.size<2
-        
-        # Reassembles the extensible filter parts 
+        raise Net::LDAP::SearchFilterError, "Invalid extensible search filter, should be at least two elements" if ber.size < 2
+
+        # Reassembles the extensible filter parts
         # (["sn", "2.4.6.8.10", "Barbara Jones", '1'])
         type = value = dn = rule = nil
         ber.each do |element|
@@ -327,10 +327,10 @@ class Net::LDAP::Filter
         attribute << type if type
         attribute << ":#{dn}" if dn
         attribute << ":#{rule}" if rule
-        
+
         ex(attribute, value)
       else
-        raise Net::LDAP::LdapError, "Invalid BER tag-value (#{ber.ber_identifier}) in search filter."
+        raise Net::LDAP::BERInvalidError, "Invalid BER tag-value (#{ber.ber_identifier}) in search filter."
       end
     end
 
@@ -357,7 +357,7 @@ class Net::LDAP::Filter
       when 0xa3 # equalityMatch. context-specific constructed 3.
         eq(obj[0], obj[1])
       else
-        raise Net::LDAP::LdapError, "Unknown LDAP search-filter type: #{obj.ber_identifier}"
+        raise Net::LDAP::SearchFilterTypeUnknownError, "Unknown LDAP search-filter type: #{obj.ber_identifier}"
       end
     end
   end
@@ -414,9 +414,7 @@ class Net::LDAP::Filter
     case @op
     when :ne
       "!(#{@left}=#{@right})"
-    when :eq
-      "#{@left}=#{@right}"
-    when :bineq
+    when :eq, :bineq
       "#{@left}=#{@right}"
     when :ex
       "#{@left}:=#{@right}"
@@ -534,7 +532,7 @@ class Net::LDAP::Filter
       seq = []
 
       unless @left =~ /^([-;\w]*)(:dn)?(:(\w+|[.\w]+))?$/
-        raise Net::LDAP::LdapError, "Bad attribute #{@left}"
+        raise Net::LDAP::BadAttributeError, "Bad attribute #{@left}"
       end
       type, dn, rule = $1, $2, $4
 
@@ -552,10 +550,10 @@ class Net::LDAP::Filter
       [self.class.eq(@left, @right).to_ber].to_ber_contextspecific(2)
     when :and
       ary = [@left.coalesce(:and), @right.coalesce(:and)].flatten
-      ary.map {|a| a.to_ber}.to_ber_contextspecific(0)
+      ary.map(&:to_ber).to_ber_contextspecific(0)
     when :or
       ary = [@left.coalesce(:or), @right.coalesce(:or)].flatten
-      ary.map {|a| a.to_ber}.to_ber_contextspecific(1)
+      ary.map(&:to_ber).to_ber_contextspecific(1)
     when :not
       [@left.to_ber].to_ber_contextspecific(2)
     end
@@ -641,15 +639,14 @@ class Net::LDAP::Filter
         l = entry[@left] and l = Array(l) and l.index(@right)
       end
     else
-      raise Net::LDAP::LdapError, "Unknown filter type in match: #{@op}"
+      raise Net::LDAP::FilterTypeUnknownError, "Unknown filter type in match: #{@op}"
     end
   end
 
   ##
   # Converts escaped characters (e.g., "\\28") to unescaped characters
-  # ("(").
   def unescape(right)
-    right.gsub(/\\([a-fA-F\d]{2})/) { [$1.hex].pack("U") }
+    right.to_s.gsub(/\\([a-fA-F\d]{2})/) { [$1.hex].pack("U") }
   end
   private :unescape
 
@@ -674,7 +671,7 @@ class Net::LDAP::Filter
     def initialize(str)
       require 'strscan' # Don't load strscan until we need it.
       @filter = parse(StringScanner.new(str))
-      raise Net::LDAP::LdapError, "Invalid filter syntax." unless @filter
+      raise Net::LDAP::FilterSyntaxInvalidError, "Invalid filter syntax." unless @filter
     end
 
     ##
@@ -755,7 +752,7 @@ class Net::LDAP::Filter
         scanner.scan(/\s*/)
         if op = scanner.scan(/<=|>=|!=|:=|=/)
           scanner.scan(/\s*/)
-          if value = scanner.scan(/(?:[-\w*.+@=,#\$%&!'\s\xC3\x80-\xCA\xAF]|[^\x00-\x7F]|\\[a-fA-F\d]{2})+/u)
+          if value = scanner.scan(/(?:[-\[\]{}\w*.+\/:@=,#\$%&!'^~\s\xC3\x80-\xCA\xAF]|[^\x00-\x7F]|\\[a-fA-F\d]{2})+/u)
             # 20100313 AZ: Assumes that "(uid=george*)" is the same as
             # "(uid=george* )". The standard doesn't specify, but I can find
             # no examples that suggest otherwise.
