@@ -47,7 +47,7 @@ module Net
             end
 
             return pdu unless pdu.result_code == Net::LDAP::ResultCodeSaslBindInProgress
-            raise Net::LDAP::SASLChallengeOverflowError, "sasl-challenge overflow" if ((n += 1) > MaxSaslChallenges)
+            raise Net::LDAP::SASLChallengeOverflowError, "sasl-challenge overflow" if ((n += 1) > 10)
 
             cred = chall.call(pdu.result_server_sasl_creds)
           end
