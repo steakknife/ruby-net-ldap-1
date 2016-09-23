@@ -71,7 +71,7 @@ class Net::LDAP::Entry
 
       return nil if ds.empty?
 
-      raise Net::LDAP::LdapError, "Too many LDIF entries" unless ds.size == 1
+      raise Net::LDAP::EntryOverflowError, "Too many LDIF entries" unless ds.size == 1
 
       entry = ds.to_entries.first
 
@@ -114,6 +114,14 @@ class Net::LDAP::Entry
   end
 
   ##
+  # Read the first value for the provided attribute. The attribute name
+  # is canonicalized prior to reading. Returns nil if the attribute does
+  # not exist.
+  def first(name)
+    self[name].first
+  end
+
+  ##
   # Returns the first distinguished name (dn) of the Entry as a \String.
   def dn
     self[:dn].first.to_s
@@ -133,10 +141,10 @@ class Net::LDAP::Entry
   # (possibly empty) \Array of data values.
   def each # :yields: attribute-name, data-values-array
     if block_given?
-      attribute_names.each {|a|
-        attr_name,values = a,self[a]
+      attribute_names.each do|a|
+        attr_name, values = a, self[a]
         yield attr_name, values
-      }
+      end
     end
   end
   alias_method :each_attribute, :each
@@ -147,7 +155,7 @@ class Net::LDAP::Entry
     Net::LDAP::Dataset.from_entry(self).to_ldif_string
   end
 
-  def respond_to?(sym) #:nodoc:
+  def respond_to?(sym, include_all = false) #:nodoc:
     return true if valid_attribute?(self.class.attribute_name(sym))
     return super
   end
