@@ -543,7 +543,6 @@ class Net::LDAP
     @encryption = normalize_encryption(args[:encryption]) # may be nil
     @connect_timeout = args[:connect_timeout]
     @keepalive = args[:keepalive] || DefaultKeepalive
-    encryption args[:encryption] # may be nil
 
     if pr = @auth[:password] and pr.respond_to?(:call)
       @auth[:password] = pr.call
