@@ -1,19 +1,24 @@
 # $Id: testsnmp.rb 231 2006-12-21 15:09:29Z blackhedd $
 
-require 'common'
+require_relative 'test_helper'
 require 'net/snmp'
 
 class TestSnmp < Test::Unit::TestCase
-  SnmpGetRequest = "0'\002\001\000\004\006public\240\032\002\002?*\002\001\000\002\001\0000\0160\f\006\b+\006\001\002\001\001\001\000\005\000"
-  SnmpGetResponse = "0+\002\001\000\004\006public\242\036\002\002'\017\002\001\000\002\001\0000\0220\020\006\b+\006\001\002\001\001\001\000\004\004test"
+  def self.raw_string(s)
+    # Conveniently, String#b only needs to be called when it exists
+    s.respond_to?(:b) ? s.b : s
+  end
 
-  SnmpGetRequestXXX = "0'\002\001\000\004\006xxxxxx\240\032\002\002?*\002\001\000\002\001\0000\0160\f\006\b+\006\001\002\001\001\001\000\005\000"
+  SnmpGetRequest = raw_string("0'\002\001\000\004\006public\240\032\002\002?*\002\001\000\002\001\0000\0160\f\006\b+\006\001\002\001\001\001\000\005\000")
+  SnmpGetResponse = raw_string("0+\002\001\000\004\006public\242\036\002\002'\017\002\001\000\002\001\0000\0220\020\006\b+\006\001\002\001\001\001\000\004\004test")
+
+  SnmpGetRequestXXX = raw_string("0'\002\001\000\004\006xxxxxx\240\032\002\002?*\002\001\000\002\001\0000\0160\f\006\b+\006\001\002\001\001\001\000\005\000")
 
   def test_invalid_packet
     data = "xxxx"
-    assert_raise(Net::BER::BerError) {
+    assert_raise(Net::BER::BerError) do
 ary = data.read_ber(Net::SNMP::AsnSyntax)
-    }
+    end
   end
 
   # The method String#read_ber! added by Net::BER consumes a well-formed BER
@@ -35,9 +40,9 @@ ary = data.read_ber(Net::SNMP::AsnSyntax)
   end
 
   def test_weird_packet
-    assert_raise(Net::SnmpPdu::Error) {
+    assert_raise(Net::SnmpPdu::Error) do
 Net::SnmpPdu.parse("aaaaaaaaaaaaaa")
-    }
+    end
   end
 
   def test_get_request

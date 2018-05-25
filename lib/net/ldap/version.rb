@@ -1,5 +1,5 @@
 module Net
   class LDAP
-    VERSION = "0.5.0.cv"
+    VERSION = "0.14.0"
   end
 end

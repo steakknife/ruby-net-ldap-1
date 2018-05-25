@@ -14,7 +14,7 @@ module Net::BER::BERParser
   }
   constructed = {
     16 => :array,
-    17 => :array
+    17 => :array,
   }
   universal = { :primitive => primitive, :constructed => constructed }
 
@@ -41,9 +41,18 @@ module Net::BER::BERParser
       s.ber_identifier = id
       s
     elsif object_type == :integer
-      j = 0
-      data.each_byte { |b| j = (j << 8) + b }
-      j
+      neg = !(data.unpack("C").first & 0x80).zero?
+      int = 0
+
+      data.each_byte do |b|
+        int = (int << 8) + (neg ? 255 - b : b)
+      end
+
+      if neg
+        (int + 1) * -1
+      else
+        int
+      end
     elsif object_type == :oid
       # See X.690 pgh 8.19 for an explanation of this algorithm.
       # This is potentially not good enough. We may need a
@@ -148,6 +157,9 @@ module Net::BER::BERParser
   # implemented on the including object and that it returns a Fixnum value.
   # Also requires #read(bytes) to work.
   #
+  # Yields the object type `id` and the data `content_length` if a block is
+  # given. This is namely to support instrumentation.
+  #
   # This does not work with non-blocking I/O.
   def read_ber(syntax = nil)
     # TODO: clean this up so it works properly with partial packets coming
@@ -156,6 +168,8 @@ module Net::BER::BERParser
 
     id = getbyte or return nil  # don't trash this value, we'll use it later
     content_length = read_ber_length
+
+    yield id, content_length if block_given?
 
     if -1 == content_length
       raise Net::BER::BerError, "Indeterminite BER content length not implemented."

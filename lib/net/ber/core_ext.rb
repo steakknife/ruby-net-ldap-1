@@ -28,35 +28,28 @@ end
 
 require 'net/ber/core_ext/array'
 # :stopdoc:
-class Array 
+class Array
   include Net::BER::Extensions::Array
 end
 # :startdoc:
 
-require 'net/ber/core_ext/bignum'
+require 'net/ber/core_ext/integer'
 # :stopdoc:
-class Bignum 
-  include Net::BER::Extensions::Bignum
-end
-# :startdoc:
-
-require 'net/ber/core_ext/fixnum'
-# :stopdoc:
-class Fixnum 
-  include Net::BER::Extensions::Fixnum
+class Integer
+  include Net::BER::Extensions::Integer
 end
 # :startdoc:
 
 require 'net/ber/core_ext/true_class'
 # :stopdoc:
-class TrueClass 
+class TrueClass
   include Net::BER::Extensions::TrueClass
 end
 # :startdoc:
 
 require 'net/ber/core_ext/false_class'
 # :stopdoc:
-class FalseClass 
+class FalseClass
   include Net::BER::Extensions::FalseClass
 end
 # :startdoc:
